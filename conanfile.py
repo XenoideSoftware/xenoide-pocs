@@ -4,7 +4,7 @@ from conan import ConanFile
 class xepocsRecipe(ConanFile):
     name = "xepocs"
     version = "0.1.0"  # version file (source of truth)
-    python_requires = "xenoide-base/0.1.0"
+    python_requires = "xenoide-base/0.1.1"
     python_requires_extend = "xenoide-base.XenoideCMake"
     package_type = "application"
     build_info_prefix = "XE"
@@ -24,12 +24,18 @@ class xepocsRecipe(ConanFile):
     }
 
     default_options = {
-        "with_poc_clang": True,
+        # LLVM Debug builds are ~4400 steps and tens of GB; keep the POC off
+        # unless explicitly requested (build LLVM in Release first).
+        "with_poc_clang": False,
         "with_poc_lsp": True,
         "with_poc_protobuf": True,
         "with_poc_wxwidgets": False,
         "with_poc_zeromq": True,
     }
+
+    def configure(self):
+        # lsp-framework uses C++20 concepts; the POC project follows it.
+        self.settings.compiler.cppstd = "20"
 
     def init(self):
         super().init()
@@ -48,7 +54,9 @@ class xepocsRecipe(ConanFile):
             self.requires("protobuf/3.9.1")
 
         if self.options.get_safe("with_poc_zeromq"):
-            self.requires("zeromq/4.3.5")
+            # cppzmq is the maintained C++ binding; zmqpp has no recipe and
+            # was only ever installed out-of-band.
+            self.requires("cppzmq/4.11.0")
 
     def xenoide_toolchain(self, tc):
         for option, variable in (

@@ -1,55 +1,45 @@
-//  Hello World server
+// Hello World server using cppzmq (the header-only C++ binding for libzmq).
+#include <zmq.hpp>
 
-#include <zmqpp/zmqpp.hpp>
-
-#include <string>
-#include <iostream>
 #include <chrono>
+#include <iostream>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "message.pb.h"
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
-
+    (void)argc;
+    (void)argv;
     const string endpoint = "tcp://*:5555";
 
-    // initialize the 0MQ context
-    zmqpp::context context;
-
-    // generate a pull socket
-    zmqpp::socket_type type = zmqpp::socket_type::reply;
-    zmqpp::socket socket(context, type);
+    zmq::context_t context(1);
+    zmq::socket_t socket(context, zmq::socket_type::rep);
+    socket.bind(endpoint);
 
     int id = 0;
+    while (true) {
+        zmq::message_t request;
+        auto received = socket.recv(request, zmq::recv_flags::none);
+        if (!received) {
+            cerr << "receive failed" << endl;
+            return 1;
+        }
 
-    // bind to the socket
-    socket.bind(endpoint);
-    while (1) {
-        // receive the message
-        zmqpp::message message;
-        // decompose the message
-        socket.receive(message);
-
-        string text;
-        message >> text;
-
-        // Do some 'work'
         std::this_thread::sleep_for(std::chrono::seconds(1));
         cout << "Received Hello" << endl;
 
-        // construct the message
         Message protoMessageToSend;
         protoMessageToSend.set_id(++id);
         protoMessageToSend.set_content("World");
 
-        // serialize to a std::vector
         std::vector<char> buffer;
         buffer.resize(protoMessageToSend.ByteSizeLong());
-        protoMessageToSend.SerializeToArray(buffer.data(), buffer.size());
+        protoMessageToSend.SerializeToArray(buffer.data(), static_cast<int>(buffer.size()));
 
-        // send it through 0MQ
-        socket.send(buffer.data());
+        socket.send(zmq::buffer(buffer.data(), buffer.size()), zmq::send_flags::none);
     }
 }
